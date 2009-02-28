@@ -4,6 +4,8 @@ import urllib2
 import gzip
 import sys
 import re
+import rfc822
+import calendar
 from datetime import datetime, timedelta
 from StringIO import StringIO
 
@@ -22,6 +24,68 @@ USER_AGENT = 'contwext/%s' % __version__
 TWITTER_URL = 'http://twitter.com'
 
 cache = {}
+
+class Status(object):
+    #def __init__(self, tweetid, text, user, created_at, in_reply_to_screen_name, in_reply_to_user_id, in_reply_to_status_id, ):
+    def __init__(self, tweet):
+        self.id = tweet['id']
+        self.text = tweet['text']
+        self.user = User(tweet['user'])
+        self.created_at = twitter_datetime(tweet['created_at'])
+        self.in_reply_to_screen_name = tweet['in_reply_to_screen_name']
+        self.in_reply_to_user_id = tweet['in_reply_to_user_id']
+        self.in_reply_to_status_id = tweet['in_reply_to_status_id']
+        self.extra = tweet
+    
+    def __eq__(self, other):
+        if hasattr(other, "id"):
+            return self.id == other.id
+        return False
+
+    def __str__(self):
+        return self.text
+
+    def __cmp__(self, other):
+        if hasattr(other, "created_at"):
+            return cmp(self.created_at, other.created_at)
+        return cmp(self.id, other)
+
+    def html(self, format = "[%s] &lt;%s&gt; %s %s"):
+        # linkify the main text
+        text = re.sub(r'((?:http.?||ftp)://[\S]+)', r'<a href="\1">\1</a>', self.text)
+        text = re.sub(r'@([\S]{1,15})', r'<a href="%s/\1">@\1</a>' % TWITTER_URL, text)
+        time = self.created_at.strftime("%H:%M")
+        
+        return format % (time, self.user.html(), text, self.link())
+    
+    def link(self, text = "#"):
+        return '<a href="%s">%s</a>' % (self.url(), text)
+
+    def url(self):
+        return '%s/%s/statuses/%s' % (TWITTER_URL, self.user.screen_name, self.id)
+
+class User(object):
+    def __init__(self, user):
+        self.screen_name = user['screen_name']
+        self.name = user['name']
+        self.extra = user
+
+    def __eq__(self, other):
+        if hasattr(other, "screen_name"):
+            return self.screen_name == other.screen_name
+        return False
+
+    def __str__(self):
+        return self.screen_name
+
+    def html(self, format = '%s'):
+        return format % self.link()
+    
+    def link(self, text = None):
+        return '<a href="%s">%s</a>' % (self.url(), text or self.name)
+
+    def url(self):
+        return '%s/%s' % (TWITTER_URL, self.screen_name)
 
 def twitter(method, **kwargs):
     params = '&'.join(["%s=%s" % (k,v) for k,v in kwargs.items()])
@@ -47,11 +111,11 @@ def fetch_statuses(id, time, limit=5):
             # probably a protected user
             break
         for tweet in tweets:
-            all.append(tweet)
-            created_at = twitter_datetime(tweet['created_at'])
-            if created_at < time:
+            tweet = Status(tweet)
+            if tweet.created_at < time:
                 complete = True
                 break
+            all.append(tweet)
         page = page + 1
     return all
 
@@ -59,47 +123,32 @@ def fetch_status(id):
     tweet = twitter('statuses/show/%s' % id)
     if 'error' in tweet:
         return False
-    return tweet
+    return Status(tweet)
 
-def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=15)):
+def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=20)):
     all = []
     my_tweets = fetch_statuses(id, time) # 1 day ago
     for tweet in my_tweets:
         all.append(tweet)
-        if tweet['in_reply_to_status_id']:
+        if tweet.in_reply_to_status_id:
             # they responded by pressing the reply button
-            reply_tweet = fetch_status(tweet['in_reply_to_status_id'])
-            all.append(reply_tweet)
-        elif guess and tweet['in_reply_to_screen_name']:
+            reply_tweet = fetch_status(tweet.in_reply_to_status_id)
+            if reply_tweet:
+                all.append(reply_tweet)
+        elif guess and tweet.in_reply_to_screen_name:
             # they just typed @foo in; try to guess at the tweet it's responding to.
-            tweet_time = twitter_datetime(tweet['created_at'])
-            their_tweets = fetch_statuses(tweet['in_reply_to_screen_name'], tweet_time - guess_threshold)
+            their_tweets = fetch_statuses(tweet.in_reply_to_screen_name, tweet.created_at - guess_threshold)
             for t in their_tweets:
-                if twitter_datetime(t['created_at']) < tweet_time:
+                if t.in_reply_to_screen_name == id and t.created_at < tweet.created_at:
                     all.append(t)
                     break
+    all.sort()
     return all
-
-def format_status(tweet):
-    return "[%s] &lt;%s&gt; %s %s" % (format_time(tweet['created_at']), format_user(tweet['user']), format_status_text(tweet['text']), link_to_status(tweet))
-
-def format_status_text(text):
-    text = re.sub(r'((?:http.?||ftp)://[\S]+)', r'<a href="\1">\1</a>', text)
-    text = re.sub(r'@([\S]{1,15})', r'<a href="%s/\1">@\1</a>' % TWITTER_URL, text)
-    return text
-
-def format_user(user):
-    return '<a href="%s/%s">%s</a>' % (TWITTER_URL, user['screen_name'], user['name'])
-
-def format_time(time, format="%H:%M"):
-    return twitter_datetime(time).strftime(format)
-
-def link_to_status(tweet, text="#"):
-    return '<a href="%s/%s/statuses/%s">%s</a>' % (TWITTER_URL, tweet['user']['screen_name'], tweet['id'], text)
 
 def twitter_datetime(s):
     # twitter gives times similar to: 'Fri Feb 27 07:43:24 +0000 2009'
-    return datetime.strptime(s, '%a %b %d %H:%M:%S +0000 %Y')
+    # Who would have thought that converting these to the current timezone would be such a bitch?
+    return datetime.fromtimestamp(calendar.timegm(rfc822.parsedate(s)))
 
 def _fetch(url):
     """A generic URL-fetcher, which handles gzipped content, returns a file-like object"""
@@ -114,7 +163,7 @@ def _fetch(url):
     return data
 
 if __name__ == "__main__":
-    conversation = fetch_conversation('kemayo', datetime.now() - timedelta(days=1))
+    conversation = fetch_conversation('kemayo', datetime.now() - timedelta(days=1), guess_threshold = timedelta(hours=1))
     for tweet in conversation:
-        print format_status(tweet)
+        print tweet.html()
 
