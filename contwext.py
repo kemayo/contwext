@@ -83,7 +83,7 @@ class User(object):
         return format % self.link()
     
     def link(self, text = None):
-        return '<a href="%s">%s</a>' % (self.url(), text or self.name)
+        return '<a href="%s" title="%s">%s</a>' % (self.url(), self.name, text or self.screen_name)
 
     def url(self):
         return '%s/%s' % (TWITTER_URL, self.screen_name)

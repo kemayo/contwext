@@ -39,5 +39,5 @@ if __name__ == "__main__":
         sys.exit("Nothing to post.")
     
     postinfo = post(lj_user, lj_pass, format_conversation(conversation))
-    print postinfo
+    print "Posted %d tweets" % len(conversation)
 
