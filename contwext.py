@@ -20,13 +20,13 @@ __version__ = '0.1'
 __copyright__ = 'Copyright (c) 2009 David Lynch'
 __license__ = 'New BSD License'
 
-USER_AGENT = 'contwext/%s' % __version__
+USER_AGENT = 'contwext/%s +http://github.com/kemayo/contwext/tree/master' % __version__
 TWITTER_URL = 'http://twitter.com'
 
 cache = {}
 
 class Status(object):
-    #def __init__(self, tweetid, text, user, created_at, in_reply_to_screen_name, in_reply_to_user_id, in_reply_to_status_id, ):
+    """Represent a single twitter status update"""
     def __init__(self, tweet):
         self.id = tweet['id']
         self.text = tweet['text']
@@ -65,6 +65,7 @@ class Status(object):
         return '%s/%s/statuses/%s' % (TWITTER_URL, self.user.screen_name, self.id)
 
 class User(object):
+    """Represent a twitter user"""
     def __init__(self, user):
         self.screen_name = user['screen_name']
         self.name = user['name']
@@ -88,6 +89,7 @@ class User(object):
         return '%s/%s' % (TWITTER_URL, self.screen_name)
 
 def twitter_api(method, **kwargs):
+    """Fetches the result of a twitter API method"""
     params = '&'.join(["%s=%s" % (k,v) for k,v in kwargs.items()])
     url = "%s/%s.json?suppress_response_codes&%s" % (TWITTER_URL, method, params)
     if url in cache:
@@ -97,7 +99,7 @@ def twitter_api(method, **kwargs):
     cache[url] = decoded_response
     return decoded_response
 
-def fetch_statuses(id, time, limit=8):
+def fetch_statuses(id, time, limit=10):
     """Fetches statuses by a user until time"""
     complete = False
     page = 1
@@ -120,27 +122,30 @@ def fetch_statuses(id, time, limit=8):
     return all
 
 def fetch_status(id):
+    """Fetch a single twitter update by id"""
     tweet = twitter_api('statuses/show/%s' % id)
     if 'error' in tweet:
         return False
     return Status(tweet)
 
-def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=30), reply_threshold=timedelta(hours=6)):
+def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=15), reply_threshold=timedelta(hours=6)):
+    """Attempt to fetch all tweets and their involved conversations for a given user, within a given time period"""
     all = set()
     my_tweets = fetch_statuses(id, time) # 1 day ago
     for tweet in my_tweets:
         all.add(tweet)
         if tweet.in_reply_to_status_id:
-            # They responded by pressing the reply button
+            # Responded by pressing the reply button. THIS MAKES MY LIFE SO MUCH EASIER!
             reply_tweet = fetch_status(tweet.in_reply_to_status_id)
             if reply_tweet:
                 all.add(reply_tweet)
         elif guess and tweet.in_reply_to_screen_name:
-            # They just typed @foo in; try to guess at the tweet it's responding to.
+            # Just typed @foo in; try to guess at the tweet it's responding to.
             # This is very inexact, unfortunately. It tries to fetch a tweet within reply_threshold
             # of this tweet, which is in reply to this user -- this should work best for a case of back-and-forth
             # tweeting. Otherwise it checkes whether the most recent tweet of the replied-to user is within
             # reply_threshold of this tweet, and assumes it's the one being replied to.
+            # This is an algorithm that could use improvement, but it works for my low-activity account.
             their_tweets = fetch_statuses(tweet.in_reply_to_screen_name, tweet.created_at - max(guess_threshold, reply_threshold))
             candidate = False
             for t in their_tweets:
@@ -157,6 +162,7 @@ def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=3
     return all
 
 def twitter_datetime(s):
+    """Turn twitter's rfc822 created_at times into a datetime in the local timezone"""
     # twitter gives times similar to: 'Fri Feb 27 07:43:24 +0000 2009'
     # Who would have thought that converting these to the current timezone would be such a bitch?
     return datetime.fromtimestamp(calendar.timegm(rfc822.parsedate(s)))
