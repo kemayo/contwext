@@ -87,7 +87,7 @@ class User(object):
     def url(self):
         return '%s/%s' % (TWITTER_URL, self.screen_name)
 
-def twitter(method, **kwargs):
+def twitter_api(method, **kwargs):
     params = '&'.join(["%s=%s" % (k,v) for k,v in kwargs.items()])
     url = "%s/%s.json?suppress_response_codes&%s" % (TWITTER_URL, method, params)
     if url in cache:
@@ -97,7 +97,7 @@ def twitter(method, **kwargs):
     cache[url] = decoded_response
     return decoded_response
 
-def fetch_statuses(id, time, limit=5):
+def fetch_statuses(id, time, limit=8):
     """Fetches statuses by a user until time"""
     complete = False
     page = 1
@@ -106,7 +106,7 @@ def fetch_statuses(id, time, limit=5):
         if page > limit:
             # just give up if this is taking too long
             break
-        tweets = twitter("statuses/user_timeline", id=id, page=page)
+        tweets = twitter_api("statuses/user_timeline", id=id, page=page)
         if 'error' in tweets:
             # probably a protected user
             break
@@ -120,28 +120,39 @@ def fetch_statuses(id, time, limit=5):
     return all
 
 def fetch_status(id):
-    tweet = twitter('statuses/show/%s' % id)
+    tweet = twitter_api('statuses/show/%s' % id)
     if 'error' in tweet:
         return False
     return Status(tweet)
 
-def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=20)):
-    all = []
+def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=30), reply_threshold=timedelta(hours=6)):
+    all = set()
     my_tweets = fetch_statuses(id, time) # 1 day ago
     for tweet in my_tweets:
-        all.append(tweet)
+        all.add(tweet)
         if tweet.in_reply_to_status_id:
-            # they responded by pressing the reply button
+            # They responded by pressing the reply button
             reply_tweet = fetch_status(tweet.in_reply_to_status_id)
             if reply_tweet:
-                all.append(reply_tweet)
+                all.add(reply_tweet)
         elif guess and tweet.in_reply_to_screen_name:
-            # they just typed @foo in; try to guess at the tweet it's responding to.
-            their_tweets = fetch_statuses(tweet.in_reply_to_screen_name, tweet.created_at - guess_threshold)
+            # They just typed @foo in; try to guess at the tweet it's responding to.
+            # This is very inexact, unfortunately. It tries to fetch a tweet within reply_threshold
+            # of this tweet, which is in reply to this user -- this should work best for a case of back-and-forth
+            # tweeting. Otherwise it checkes whether the most recent tweet of the replied-to user is within
+            # reply_threshold of this tweet, and assumes it's the one being replied to.
+            their_tweets = fetch_statuses(tweet.in_reply_to_screen_name, tweet.created_at - max(guess_threshold, reply_threshold))
+            candidate = False
             for t in their_tweets:
-                if t.in_reply_to_screen_name == id and t.created_at < tweet.created_at:
-                    all.append(t)
-                    break
+                if t.created_at < tweet.created_at:
+                    if t.created_at > (tweet.created_at - reply_threshold) and t.in_reply_to_screen_name == id:
+                        candidate = t
+                        break
+            if not candidate and their_tweets[0].created_at > (tweet.created_at - guess_threshold):
+                    candidate = their_tweets[0]
+            if candidate:
+                all.add(candidate)
+    all = list(all)
     all.sort()
     return all
 
@@ -163,7 +174,11 @@ def _fetch(url):
     return data
 
 if __name__ == "__main__":
-    conversation = fetch_conversation('kemayo', datetime.now() - timedelta(days=1), guess_threshold = timedelta(hours=1))
+    id = 'kemayo'
+    conversation = fetch_conversation(id, datetime.now() - timedelta(days=2), guess_threshold = timedelta(hours=1))
     for tweet in conversation:
-        print tweet.html()
+        if tweet.user.screen_name == id:
+            print tweet.html()
+        else:
+            print '***', tweet.html()
 
