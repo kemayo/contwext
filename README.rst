@@ -37,3 +37,14 @@ have useful attributes like ``text``, ``user``, and ``created_at``.
 Users are represented as objects of the ``contwext.User`` class. They have
 useful attributes like ``screen_name`` and ``name``.
 
+Sample
+------
+
+Included is ``contwext_journal.py``, which will post a twitter user's
+last day of conversation to livejournal.
+
+To run it you need ljpy: http://code.google.com/p/ljpy
+
+Rename contwext_journal.ini.default to contwext_journal.ini and enter your
+information.
+
