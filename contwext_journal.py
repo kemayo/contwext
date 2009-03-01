@@ -17,11 +17,15 @@ def post(username, password, event):
 
     server.postevent(event, subject="Contwextual information")
 
-def format_conversation(conversation):
+def format_conversation(conversation, owner):
     output = ['<ul>']
     for tweet in conversation:
         output.append('<li>')
+        if tweet.user.screen_name != owner:
+            output.append('<i>')
         output.append(tweet.html())
+        if tweet.user.screen_name != owner:
+            output.append('</i>')
         output.append('</li>')
     output.append('</ul><p>Posted with <a href="http://github.com/kemayo/contwext/tree/master">Contwext</a></p>')
     return ''.join(output)
@@ -38,6 +42,6 @@ if __name__ == "__main__":
     if len(conversation) == 0:
         sys.exit("Nothing to post.")
     
-    postinfo = post(lj_user, lj_pass, format_conversation(conversation))
+    postinfo = post(lj_user, lj_pass, format_conversation(conversation, twitter_user))
     print "Posted %d tweets" % len(conversation)
 
