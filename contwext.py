@@ -43,7 +43,7 @@ class Status(object):
         return False
 
     def __str__(self):
-        return self.text
+        return "%s: %s" % (self.user, self.text)
 
     def __cmp__(self, other):
         if hasattr(other, "created_at"):
@@ -178,7 +178,9 @@ if __name__ == "__main__":
     conversation = fetch_conversation(id, datetime.now() - timedelta(days=2), guess_threshold = timedelta(hours=1))
     for tweet in conversation:
         if tweet.user.screen_name == id:
-            print tweet.html()
+            #print tweet.html()
+            print tweet
         else:
-            print '***', tweet.html()
+            print '***', tweet
+            #print '***', tweet.html()
 
