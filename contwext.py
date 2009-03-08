@@ -24,6 +24,7 @@ USER_AGENT = 'contwext/%s +http://github.com/kemayo/contwext/tree/master' % __ve
 TWITTER_URL = 'http://twitter.com'
 
 cache = {}
+status_cache = {}
 
 class Status(object):
     """Represent a single twitter status update"""
@@ -106,7 +107,7 @@ def twitter_api(method, **kwargs):
     cache[url] = decoded_response
     return decoded_response
 
-def fetch_statuses(id, time, limit=10):
+def fetch_statuses(id, time, limit=10, method="statuses/user_timeline"):
     """Fetches statuses by a user until time"""
     complete = False
     page = 1
@@ -115,12 +116,13 @@ def fetch_statuses(id, time, limit=10):
         if page > limit:
             # just give up if this is taking too long
             break
-        tweets = twitter_api("statuses/user_timeline", id=id, page=page)
+        tweets = twitter_api(method, id=id, page=page)
         if 'error' in tweets:
             # probably a protected user
             break
         for tweet in tweets:
             tweet = Status(tweet)
+            status_cache[tweet.id] = tweet
             if tweet.created_at < time:
                 complete = True
                 break
@@ -130,10 +132,14 @@ def fetch_statuses(id, time, limit=10):
 
 def fetch_status(id):
     """Fetch a single twitter update by id"""
+    if id in status_cache:
+        return status_cache[id]
     tweet = twitter_api('statuses/show/%s' % id)
     if 'error' in tweet:
         return False
-    return Status(tweet)
+    tweet = Status(tweet)
+    status_cache[id] = tweet
+    return tweet
 
 def fetch_conversation(id, time, guess=True, guess_threshold=timedelta(minutes=15), reply_threshold=timedelta(hours=6)):
     """Attempt to fetch all tweets and their involved conversations for a given user, within a given time period"""
@@ -191,9 +197,7 @@ if __name__ == "__main__":
     conversation = fetch_conversation(id, datetime.now() - timedelta(days=2), guess_threshold = timedelta(hours=1))
     for tweet in conversation:
         if tweet.user.screen_name == id:
-            #print tweet.html()
             print tweet
         else:
             print '***', tweet
-            #print '***', tweet.html()
 
