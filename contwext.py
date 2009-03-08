@@ -42,6 +42,9 @@ class Status(object):
             return self.id == other.id
         return False
 
+    def __hash__(self):
+        return hash(self.id)
+
     def __str__(self):
         return "%s: %s" % (self.user, self.text)
 
@@ -67,14 +70,18 @@ class Status(object):
 class User(object):
     """Represent a twitter user"""
     def __init__(self, user):
+        self.id = user['id']
         self.screen_name = user['screen_name']
         self.name = user['name']
         self.extra = user
 
     def __eq__(self, other):
-        if hasattr(other, "screen_name"):
-            return self.screen_name == other.screen_name
+        if hasattr(other, "id"):
+            return self.id == other.id
         return False
+
+    def __hash__(self):
+        return hash(self.id)
 
     def __str__(self):
         return self.screen_name
