@@ -32,11 +32,17 @@ def format_conversation(conversation, owner):
 
 if __name__ == "__main__":
     config = ConfigParser.SafeConfigParser()
-    config.read('contwext_journal.ini')
+    if len(sys.argv) == 2:
+        config_file = sys.argv[1]
+    else:
+        config_file = 'contwext_journal'
+    config.read(config_file)
     twitter_user = config.get('twitter', 'username')
     twitter_days = int(config.get('twitter', 'days'))
     lj_user = config.get('lj', 'username')
     lj_pass = config.get('lj', 'password')
+    
+    print "Fetching from twitter user ", twitter_user, " (", twitter_days, ") and posting to LJ user ", lj_user
 
     conversation = contwext.fetch_conversation(twitter_user, datetime.now() - timedelta(days=twitter_days))
     if len(conversation) == 0:
