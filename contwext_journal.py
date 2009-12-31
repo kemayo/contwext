@@ -35,7 +35,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         config_file = sys.argv[1]
     else:
-        config_file = 'contwext_journal'
+        config_file = 'contwext_journal.ini'
     config.read(config_file)
     twitter_user = config.get('twitter', 'username')
     twitter_days = int(config.get('twitter', 'days'))
