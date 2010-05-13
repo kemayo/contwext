@@ -58,7 +58,7 @@ class Status(object):
         # linkify the main text
         text = re.sub(r'((?:http.?||ftp)://[\S]+)', r'<a href="\1">\1</a>', self.text)
         text = re.sub(r'@([\S]{1,15})', r'<a href="%s/\1">@\1</a>' % TWITTER_URL, text)
-        text = re.sub(r'#(\S*)', r'<a href="%s/search?q=\1">#\1</a>', text)
+        text = re.sub(r'(?<=\s)#(\S*)', r'<a href="%s/search?q=\1">#\1</a>', text)
         time = self.created_at.strftime("%H:%M")
 
         
