@@ -9,6 +9,11 @@ import calendar
 from datetime import datetime, timedelta
 from StringIO import StringIO
 
+try:
+    import longurl
+except ImportError:
+    longurl = False
+
 # python 2.6 has json included, otherwise try to get simplejson if it's available
 try:
     import json
@@ -56,11 +61,11 @@ class Status(object):
 
     def html(self, format = "[%s] &lt;%s&gt; %s %s"):
         # linkify the main text
-        text = re.sub(r'((?:http.?||ftp)://[\S]+)', r'<a href="\1">\1</a>', self.text)
+        # text = re.sub(r'((?:http.?||ftp)://[\S]+)', r'<a href="\1">\1</a>', self.text)
+        text = re.sub(r'((?:http.?||ftp)://[\S]+)', (lambda m: '<a href="%s">%s</a>' % (expand_url(m.group(1)), expand_url(m.group(1)))), self.text)
         text = re.sub(r'@([\S]{1,15})', r'<a href="%s/\1">@\1</a>' % TWITTER_URL, text)
         text = re.sub(r'(?<=\s)#(\S*)', r'<a href="%s/search?q=\1">#\1</a>', text)
         time = self.created_at.strftime("%H:%M")
-
         
         return format % (time, self.user.html(), text, self.link())
     
@@ -194,12 +199,17 @@ def _fetch(url):
         data = gzip.GzipFile(fileobj=data)
     return data
 
+def expand_url(url):
+    if not longurl:
+        return url
+    return longurl.longurl(url)
+
 if __name__ == "__main__":
     id = 'kemayo'
     conversation = fetch_conversation(id, datetime.now() - timedelta(days=2), guess_threshold = timedelta(hours=1))
+    
     for tweet in conversation:
         if tweet.user.screen_name == id:
             print tweet
         else:
             print '***', tweet
-

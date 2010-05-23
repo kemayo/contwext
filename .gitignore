@@ -1,4 +1,5 @@
 *.swp
 *.pyc
 lj.py
+longurl.py
 contwext_journal.ini
