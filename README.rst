@@ -37,6 +37,10 @@ have useful attributes like ``text``, ``user``, and ``created_at``.
 Users are represented as objects of the ``contwext.User`` class. They have
 useful attributes like ``screen_name`` and ``name``.
 
+If http://github.com/kemayo/longurl is present it'll be used to expand URLs in
+status updates when the Status.html() method is called. I might rearrange this
+in the future...
+
 Sample
 ------
 
